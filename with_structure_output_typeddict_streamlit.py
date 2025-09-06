@@ -187,4 +187,130 @@ However, it does get quite warm during intensive tasks and the webcam could be b
         st.warning("⚠️ Please configure your Google API key to use this app.")
         
         # Instructions for different platforms
-        with st.expander(
+        with st.expander("📖 How to set up API key"):
+            st.markdown("""
+            ### For Streamlit Cloud:
+            1. Go to your app dashboard
+            2. Click "Manage app" → "Settings" 
+            3. Go to "Secrets" section
+            4. Add: `GOOGLE_API_KEY = "your_api_key_here"`
+            
+            ### For Local Development:
+            1. Create a `.env` file in your project folder
+            2. Add: `GOOGLE_API_KEY=your_api_key_here`
+            
+            ### Get your API key:
+            Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+            """)
+        st.stop()
+    
+    # Initialize model
+    model = initialize_model()
+    if not model:
+        st.error("❌ Failed to initialize the model. Please check your API key and internet connection.")
+        st.stop()
+    
+    # Input section
+    st.subheader("📝 Enter Your Review")
+    
+    # Get review text from session state if available
+    default_text = st.session_state.get('review_text', '')
+    
+    review_text = st.text_area(
+        "Paste your product review here:",
+        value=default_text,
+        height=200,
+        placeholder="Enter a detailed product review to analyze its sentiment, themes, pros, and cons..."
+    )
+    
+    # Update session state
+    st.session_state.review_text = review_text
+    
+    # Analysis button
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        analyze_button = st.button("🔍 Analyze Review", type="primary", use_container_width=True)
+    
+    if analyze_button and review_text.strip():
+        result = analyze_review(model, review_text)
+        
+        if result:
+            st.success("✅ Analysis completed!")
+            
+            # Display results
+            st.markdown("---")
+            st.subheader("📊 Analysis Results")
+            
+            # Sentiment - with safe access
+            st.markdown("### 🎭 Sentiment Analysis")
+            sentiment = result.get('sentiment', 'neutral')
+            display_sentiment(sentiment)
+            
+            # Summary - with safe access
+            st.markdown("### 📋 Summary")
+            summary = result.get('summary', 'No summary available')
+            st.info(summary)
+            
+            # Key Themes - with safe access
+            key_themes = result.get('key_themes', [])
+            if key_themes:
+                st.markdown("### 🏷️ Key Themes")
+                themes_cols = st.columns(min(len(key_themes), 4))
+                for i, theme in enumerate(key_themes):
+                    with themes_cols[i % 4]:
+                        st.markdown(f"<div class='metric-card'>🏷️ {theme}</div>", unsafe_allow_html=True)
+            
+            # Pros and Cons - with safe access
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("### ✅ Pros")
+                pros = result.get('pros', [])
+                if pros:
+                    for pro in pros:
+                        st.markdown(f"• {pro}")
+                else:
+                    st.markdown("*No specific pros identified*")
+            
+            with col2:
+                st.markdown("### ❌ Cons")
+                cons = result.get('cons', [])
+                if cons:
+                    for con in cons:
+                        st.markdown(f"• {con}")
+                else:
+                    st.markdown("*No specific cons identified*")
+            
+            # Download results
+            st.markdown("---")
+            results_text = f"""
+Review Analysis Results
+=====================
+
+Sentiment: {sentiment.title()}
+
+Summary:
+{summary}
+
+Key Themes:
+{', '.join(key_themes)}
+
+Pros:
+{chr(10).join(['• ' + pro for pro in pros]) if pros else 'None identified'}
+
+Cons:
+{chr(10).join(['• ' + con for con in cons]) if cons else 'None identified'}
+            """
+            
+            st.download_button(
+                label="📥 Download Results",
+                data=results_text,
+                file_name="review_analysis.txt",
+                mime="text/plain"
+            )
+    
+    elif analyze_button:
+        st.warning("⚠️ Please enter a review to analyze.")
+
+if __name__ == "__main__":
+    main()
