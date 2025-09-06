@@ -1,0 +1,14 @@
+ Core dependencies
+streamlit>=1.28.0
+langchain-google-genai>=1.0.0
+python-dotenv>=1.0.0
+
+# Additional dependencies that might be pulled in
+langchain-core>=0.1.0
+google-generativeai>=0.3.0
+pydantic>=2.0.0
+typing-extensions>=4.0.0
+
+# Optional: For better performance and compatibility
+requests>=2.31.0
+urllib3>=1.26.0
