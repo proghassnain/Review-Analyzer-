@@ -1,11 +1,7 @@
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
-from dotenv import load_dotenv
 from typing import TypedDict, Annotated, Optional, Literal
 import os
-
-# Load environment variables
-load_dotenv()
 
 # Page configuration
 st.set_page_config(
@@ -65,22 +61,68 @@ class Review(TypedDict):
     pros: Annotated[Optional[list[str]], "A list of pros mentioned in the review"]
     cons: Annotated[Optional[list[str]], "A list of cons mentioned in the review"]
 
+def get_api_key():
+    """Get API key from Streamlit secrets or environment variables"""
+    try:
+        # First try Streamlit secrets (for cloud deployment)
+        if hasattr(st, 'secrets') and 'GOOGLE_API_KEY' in st.secrets:
+            return st.secrets['GOOGLE_API_KEY']
+        # Then try environment variables (for local development)
+        elif os.getenv('GOOGLE_API_KEY'):
+            return os.getenv('GOOGLE_API_KEY')
+        else:
+            return None
+    except Exception as e:
+        st.error(f"Error accessing API key: {e}")
+        return None
+
 @st.cache_resource
 def initialize_model():
     """Initialize the ChatGoogleGenerativeAI model"""
     try:
-        return ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=1.5)
+        api_key = get_api_key()
+        if not api_key:
+            st.error("No API key found")
+            return None
+        
+        # Initialize with explicit API key
+        model = ChatGoogleGenerativeAI(
+            model="gemini-2.0-flash-exp",  # Updated model name
+            temperature=0.7,  # Reduced temperature for more consistent results
+            google_api_key=api_key
+        )
+        return model
     except Exception as e:
         st.error(f"Error initializing model: {e}")
+        st.error("Please check your API key and internet connection.")
         return None
 
 def analyze_review(model, review_text):
     """Analyze the review using the model"""
     try:
-        result = model.with_structured_output(Review).invoke(review_text)
-        return result
+        with st.spinner("Processing with AI..."):
+            result = model.with_structured_output(Review).invoke(review_text)
+        
+        # Ensure all required keys exist with defaults
+        if isinstance(result, dict):
+            processed_result = {
+                'key_themes': result.get('key_themes', []),
+                'summary': result.get('summary', 'No summary available'),
+                'sentiment': result.get('sentiment', 'neutral'),
+                'pros': result.get('pros', []),
+                'cons': result.get('cons', [])
+            }
+            return processed_result
+        else:
+            st.error(f"Unexpected result format: {type(result)}")
+            return None
+            
     except Exception as e:
-        st.error(f"Error analyzing review: {e}")
+        st.error(f"Error analyzing review: {str(e)}")
+        if "quota" in str(e).lower():
+            st.error("API quota exceeded. Please check your Google AI usage limits.")
+        elif "key" in str(e).lower():
+            st.error("API key issue. Please verify your Google AI API key is valid.")
         return None
 
 def display_sentiment(sentiment):
@@ -112,12 +154,13 @@ def main():
         st.header("⚙️ Settings")
         
         # Check if API key is available
-        api_key_available = bool(os.getenv("GOOGLE_API_KEY"))
-        if api_key_available:
+        api_key = get_api_key()
+        if api_key:
             st.success("✅ Google API Key loaded")
         else:
             st.error("❌ Google API Key not found")
-            st.info("Please add your GOOGLE_API_KEY to your .env file")
+            st.info("For local development: Add GOOGLE_API_KEY to your .env file")
+            st.info("For Streamlit Cloud: Add GOOGLE_API_KEY to your app secrets")
         
         st.markdown("---")
         st.markdown("### About")
@@ -140,118 +183,8 @@ However, it does get quite warm during intensive tasks and the webcam could be b
             st.session_state.review_text = example_reviews[selected_example]
     
     # Main content
-    if not api_key_available:
-        st.warning("⚠️ Please configure your Google API key in the .env file to use this app.")
-        st.stop()
-    
-    # Initialize model
-    model = initialize_model()
-    if not model:
-        st.error("❌ Failed to initialize the model. Please check your API key and internet connection.")
-        st.stop()
-    
-    # Input section
-    st.subheader("📝 Enter Your Review")
-    
-    # Get review text from session state if available
-    default_text = st.session_state.get('review_text', '')
-    
-    review_text = st.text_area(
-        "Paste your product review here:",
-        value=default_text,
-        height=200,
-        placeholder="Enter a detailed product review to analyze its sentiment, themes, pros, and cons..."
-    )
-    
-    # Update session state
-    st.session_state.review_text = review_text
-    
-    # Analysis button
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        analyze_button = st.button("🔍 Analyze Review", type="primary", use_container_width=True)
-    
-    if analyze_button and review_text.strip():
-        with st.spinner("🤖 Analyzing your review..."):
-            result = analyze_review(model, review_text)
+    if not api_key:
+        st.warning("⚠️ Please configure your Google API key to use this app.")
         
-        if result:
-            st.success("✅ Analysis completed!")
-            
-            # Display results
-            st.markdown("---")
-            st.subheader("📊 Analysis Results")
-            
-            # Sentiment - with safe access
-            st.markdown("### 🎭 Sentiment Analysis")
-            sentiment = result.get('sentiment', 'neutral')
-            display_sentiment(sentiment)
-            
-            # Summary - with safe access
-            st.markdown("### 📋 Summary")
-            summary = result.get('summary', 'No summary available')
-            st.info(summary)
-            
-            # Key Themes - with safe access
-            key_themes = result.get('key_themes', [])
-            if key_themes:
-                st.markdown("### 🏷️ Key Themes")
-                themes_cols = st.columns(min(len(key_themes), 4))
-                for i, theme in enumerate(key_themes):
-                    with themes_cols[i % 4]:
-                        st.markdown(f"<div class='metric-card'>🏷️ {theme}</div>", unsafe_allow_html=True)
-            
-            # Pros and Cons - with safe access
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.markdown("### ✅ Pros")
-                pros = result.get('pros', [])
-                if pros:
-                    for pro in pros:
-                        st.markdown(f"• {pro}")
-                else:
-                    st.markdown("*No specific pros identified*")
-            
-            with col2:
-                st.markdown("### ❌ Cons")
-                cons = result.get('cons', [])
-                if cons:
-                    for con in cons:
-                        st.markdown(f"• {con}")
-                else:
-                    st.markdown("*No specific cons identified*")
-            
-            # Download results
-            st.markdown("---")
-            results_text = f"""
-Review Analysis Results
-=====================
-
-Sentiment: {sentiment.title()}
-
-Summary:
-{summary}
-
-Key Themes:
-{', '.join(key_themes)}
-
-Pros:
-{chr(10).join(['• ' + pro for pro in pros]) if pros else 'None identified'}
-
-Cons:
-{chr(10).join(['• ' + con for con in cons]) if cons else 'None identified'}
-            """
-            
-            st.download_button(
-                label="📥 Download Results",
-                data=results_text,
-                file_name="review_analysis.txt",
-                mime="text/plain"
-            )
-    
-    elif analyze_button:
-        st.warning("⚠️ Please enter a review to analyze.")
-
-if __name__ == "__main__":
-    main()
+        # Instructions for different platforms
+        with st.expander(
