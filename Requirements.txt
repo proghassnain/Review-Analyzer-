@@ -1,19 +1,18 @@
-# Core dependencies
-streamlit==1.29.0
-langchain-google-genai==1.0.10
-python-dotenv==1.0.0
+# Core dependencies for Streamlit Cloud
+streamlit
+langchain-google-genai
+python-dotenv
 
-# LangChain dependencies
-langchain-core==0.1.52
-langchain==0.1.20
+# Explicit Google AI dependencies
+google-generativeai
+google-ai-generativelanguage
 
-# Google AI dependencies
-google-generativeai==0.4.0
-google-ai-generativelanguage==0.4.0
-google-api-core==2.15.0
-google-auth==2.25.2
+# LangChain core
+langchain-core
+langchain
 
-# Core Python packages
-pydantic==2.5.3
-typing-extensions==4.9.0
-requests==2.31.0
+# Additional required packages
+pydantic
+typing-extensions
+requests
+protobuf
