@@ -1,0 +1,18 @@
+# Core dependencies for Streamlit Cloud
+streamlit
+langchain-google-genai
+python-dotenv
+
+# Explicit Google AI dependencies
+google-generativeai
+google-ai-generativelanguage
+
+# LangChain core
+langchain-core
+langchain
+
+# Additional required packages
+pydantic
+typing-extensions
+requests
+protobuf
